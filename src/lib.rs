@@ -1,9 +1,11 @@
-use std::{fs, env, process, error::Error};
+use std::{error::Error, fs, process};
+
+use clap::Parser;
 
 pub fn run (config: Config) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(config.file_path)?;
 
-    let results = if config.ignore_case {
+    let results = if config.ignore_case == "1" {
         search_case_insensitive(&config.query, &contents)
     } else {
         search(&config.query, &contents)
@@ -16,52 +18,38 @@ pub fn run (config: Config) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[derive(Parser)]
+#[command(name = "config")]
+#[command(author = "短途游")]
+#[command(version = "1.0")]
+#[command(about = "搜索给定文件中的关键词")]
 pub struct Config {
+    /// 关键词
+    #[arg(short='q', long)]
     pub query: String,
+    /// 文件位置
+    #[arg(short='p', long="path")]
     pub file_path: String,
-    pub ignore_case: bool,
+    /// 是否忽略大小写
+    #[arg(short='i', long, default_value = "0")]
+    pub ignore_case: String,
 }
 
 impl Config {
 
-    pub fn build(mut args: impl Iterator<Item = String>,) -> Result<Config, &'static str> {
-        args.next();
-        
-        let (query, file_path, ignore_case) = Config::parse_arguements(args).unwrap_or_else(|err| {
+    pub fn build() -> Result<Config, &'static str> {
+        let (query, file_path, ignore_case) = Config::parse_arguements().unwrap_or_else(|err| {
             eprintln!("Problem parsing arguments: {err}");
             process::exit(1);
         });
         Ok(Config {query,file_path,ignore_case,})
     }
 
-    fn parse_arguements(mut args: impl Iterator<Item = String>) -> Result<(String, String, bool), &'static str> {
-        let mut query = String::new();
-        let mut file_path = String::new();
-        let mut ignore_case = env::var("IGNORE_CASE").map_or(false, |var| var.eq("1"));
-        while let Some(arg) = args.next() {
-            match arg.as_str() {
-                "-q" | "--query" => {
-                    query = match args.next() {
-                        Some(arg) => arg,
-                        None => return Err("Didn't get a query string"),
-                    }
-                },
-                "-p" | "--path" => {
-                    file_path = match args.next() {
-                        Some(arg) => arg,
-                        None => return Err("Didn't get a file path"),
-                    };
-                },
-                "-i" | "--ignore_case" => {
-                    ignore_case = match args.next() {
-                        Some(arg) if arg.as_str().eq("true") => true,
-                        Some(arg) if arg.as_str().eq("false")  => false,
-                        _ => return Err("wrong input after -i or --ignore_case")
-                    };
-                }
-                _ => return Err("Illegal arguments")
-            };
-        };
+    fn parse_arguements() -> Result<(String, String, String), &'static str> {
+        let config = Config::parse();
+        let query = config.query;
+        let file_path = config.file_path;
+        let ignore_case = config.ignore_case;
 
         Ok((query, file_path, ignore_case))
     }
